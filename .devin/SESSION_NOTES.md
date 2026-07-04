@@ -161,10 +161,34 @@ GitHub Actions が Devin API を呼び出し、フラット化→テスト→PR 
 .github/workflows/
 └── flatten-tests.yml               # GitHub Actions ワークフロー（git管理）
 
+docker/flatten-tests/
+├── Dockerfile                      # alpine + bash/curl/git/jq
+├── entrypoint.sh                   # 検知→API→Slack の共通ロジック
+└── .env.example                    # 環境変数テンプレート（git管理）
+
+.dockerignore                       # .env 等のクレデンシャルを除外
+
 GitHub Secrets:
   DEVIN_API_KEY                     # Devin API キー（cog_ prefix）
   DEVIN_ORG_ID                      # Devin Organization ID（org- prefix）
   SLACK_WEBHOOK_URL                 # Slack Incoming Webhook URL
+```
+
+### ローカル実行（Docker）
+
+```bash
+# 1. .env を用意（.env.example をコピーして値を設定）
+cp docker/flatten-tests/.env.example docker/flatten-tests/.env
+# → DEVIN_API_KEY, DEVIN_ORG_ID, SLACK_WEBHOOK_URL, GITHUB_ACTOR 等を編集
+
+# 2. イメージをビルド
+docker build -f docker/flatten-tests/Dockerfile -t flatten-tests .
+
+# 3. 実行（クレデンシャルは実行時に環境変数として渡す）
+docker run --env-file docker/flatten-tests/.env flatten-tests
+
+# DRY_RUN で API 呼び出しなしに動作確認
+docker run --env-file docker/flatten-tests/.env -e DRY_RUN=1 flatten-tests
 ```
 
 ### 設定ファイル仕様

@@ -47,18 +47,12 @@ jobs:
             exit 0
           fi
 
-          # 変更ファイルを取得
           CHANGED_FILES="$(git diff --name-only HEAD~1 HEAD)"
-
-          # targets を読み込む
           TARGETS="$(jq -r '.targets[]' "$CONFIG_FILE")"
-
           MATCHED_FILES=()
+
           while IFS= read -r changed; do
-            # テストファイル以外はスキップ
-            if [[ ! "$changed" =~ \.(test|spec)\.(ts|tsx)$ ]]; then
-              continue
-            fi
+            [[ ! "$changed" =~ \.(test|spec)\.(ts|tsx)$ ]] && continue
             while IFS= read -r target; do
               if [[ "$changed" == *"$target"* ]]; then
                 if grep -q 'describe(' "$changed" 2>/dev/null; then
@@ -73,103 +67,21 @@ jobs:
             echo "No describe blocks found in changed files, skipping."
             echo "matched_files=" >> "$GITHUB_OUTPUT"
           else
-            FILES_STR="$(IFS=$'\n'; echo "${MATCHED_FILES[*]}")"
             echo "Detected files with describe blocks:"
-            echo "$FILES_STR"
-            # 改行を | で区切って出力（GITHUB_OUTPUT の制約対応）
+            printf '%s\n' "${MATCHED_FILES[@]}"
             echo "matched_files=$(IFS='|'; echo "${MATCHED_FILES[*]}")" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Launch Devin session to flatten describe blocks
-        id: launch
+      - name: Launch Devin session and notify Slack
         if: steps.detect.outputs.matched_files != ''
         env:
           DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
           DEVIN_ORG_ID: ${{ secrets.DEVIN_ORG_ID }}
-        run: |
-          CONFIG_FILE=".devin/flatten-tests.json"
-          FILES_RAW="${{ steps.detect.outputs.matched_files }}"
-          FILES_LIST="$(echo "$FILES_RAW" | tr '|' '\n')"
-          TEST_COMMAND="$(jq -r '.test_command' "$CONFIG_FILE")"
-          PR_BRANCH_PREFIX="$(jq -r '.pr_branch_prefix' "$CONFIG_FILE")"
-          TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-
-          PROMPT="以下のテストファイルで describe() ブロックを Jest の推奨スタイルに従いフラット化してください。
-
-          対象ファイル:
-          $FILES_LIST
-
-          ルール:
-          - describe('A', () => { test('B', ...) }) → test('A > B', ...) に変換する
-          - ネストが深い場合は > で連結する（例: test('A > B > C', ...)）
-          - テストのロジック・アサーションは一切変更しない
-          - eslint-disable-next-line no-restricted-globals のコメント行を削除する
-          - 変換後に以下のコマンドで全テストがパスすることを確認する:
-            $TEST_COMMAND=<対象ファイル名>
-          - 全テストがパスしたら ${PR_BRANCH_PREFIX}/${TIMESTAMP} ブランチで PR を作成する"
-
-          # 最大3回リトライ
-          SESSION_ID=""
-          for attempt in 1 2 3; do
-            echo "Launching Devin session... (attempt $attempt/3)"
-            RESPONSE="$(curl -sf \
-              -X POST \
-              -H "Authorization: Bearer $DEVIN_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n --arg prompt "$PROMPT" '{"prompt": $prompt}')" \
-              "https://api.devin.ai/v3/organizations/$DEVIN_ORG_ID/sessions" || echo "")"
-
-            SESSION_ID="$(echo "$RESPONSE" | jq -r '.session_id // empty' 2>/dev/null || echo "")"
-            if [ -n "$SESSION_ID" ]; then
-              break
-            fi
-
-            if [ "$attempt" -lt 3 ]; then
-              echo "API call failed, retrying in 5 seconds..."
-              sleep 5
-            fi
-          done
-
-          if [ -z "$SESSION_ID" ]; then
-            echo "::error::Failed to launch Devin session after 3 attempts."
-            exit 1
-          fi
-
-          echo "Devin session launched successfully."
-          echo "Session URL: https://app.devin.ai/sessions/$SESSION_ID"
-          echo "session_url=https://app.devin.ai/sessions/$SESSION_ID" >> "$GITHUB_OUTPUT"
-          # 改行を含む値は GITHUB_OUTPUT に直接書けないため | 区切りで保持
-          echo "files_list=$(echo "$FILES_LIST" | tr '\n' '|' | sed 's/|$//')" >> "$GITHUB_OUTPUT"
-
-      - name: Notify Slack
-        if: steps.launch.outputs.session_url != ''
-        env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          FILES_DISPLAY="$(echo "${{ steps.launch.outputs.files_list }}" | tr '|' '\n' | sed 's/^/• /' | tr '\n' '\n')"
-          PUSHER="${{ github.actor }}"
-          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-          SESSION_URL="${{ steps.launch.outputs.session_url }}"
-
-          PAYLOAD="$(jq -n \
-            --arg pusher "$PUSHER" \
-            --arg files "$FILES_DISPLAY" \
-            --arg commit_url "$COMMIT_URL" \
-            --arg session_url "$SESSION_URL" \
-            '{
-              "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る> | <\($session_url)|Devin セッションを見る>"
-                  }
-                }
-              ]
-            }')"
-
-          curl -sf -X POST \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "$SLACK_WEBHOOK_URL"
+          TARGET_FILES: ${{ steps.detect.outputs.matched_files }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          REPO_ROOT: ${{ github.workspace }}
+        run: bash docker/flatten-tests/entrypoint.sh
