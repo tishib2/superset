@@ -148,20 +148,22 @@ eslint-disable コメントも合わせて削除する。
 
 ### 概要・目的
 
-`describe` ブロックを含むテストファイルがコミットされたとき、
-post-commit hook が Devin API を呼び出し、フラット化→テスト→PR 作成を自動実行するシステム。
+`describe` ブロックを含むテストファイルがプッシュされたとき、
+GitHub Actions が Devin API を呼び出し、フラット化→テスト→PR 作成を自動実行するシステム。
 **デモ用途**として設計（プロダクション上の懸念点は後述）。
 
 ### ファイル構成
 
 ```
 .devin/
-├── flatten-tests.json       # 対象パス・コマンド設定（git管理）
-├── flatten-tests.lock       # 実行中フラグ（gitignore）
-└── config.local.json        # APIキー（gitignore）
+└── flatten-tests.json              # 対象パス・コマンド設定（git管理）
 
-.git/hooks/
-└── post-commit              # hook スクリプト（git管理外・手動インストール必要）
+.github/workflows/
+└── flatten-tests.yml               # GitHub Actions ワークフロー（git管理）
+
+GitHub Secrets:
+  DEVIN_API_KEY                     # Devin API キー（cog_ prefix）
+  DEVIN_ORG_ID                      # Devin Organization ID（org- prefix）
 ```
 
 ### 設定ファイル仕様
@@ -177,46 +179,25 @@ post-commit hook が Devin API を呼び出し、フラット化→テスト→P
 }
 ```
 
-**`.devin/config.local.json`**（gitignore・個人設定）
-```json
-{
-  "devin_api_key": "cog_xxxx",
-  "devin_org_id": "org-xxxx"
-}
-```
-
-**`.devin/flatten-tests.lock`**（gitignore・実行中フラグ）
-```
-session_id=devin-abc123
-started_at=2026-07-04T12:00:00
-```
-
 ### フロー
 
 ```
-開発者がコミット
+開発者がコミット＆プッシュ
       ↓
-post-commit hook 発火
+GitHub Actions 発火（push イベント）
       ↓
-1. git diff HEAD~1 で変更ファイルを取得
+1. 変更ファイルを取得（git diff）
 2. flatten-tests.json の targets と照合
-3. 対象ファイル内に describe が含まれるか grep
+3. 対象ファイル内に describe が含まれるか確認
       ↓ (なければ終了)
-4. flatten-tests.lock が存在するか確認
-   → あれば lock 内の session_id で Devin API ステータスを確認
-   → セッションが完了 or エラーなら lock を削除して続行
-   → 実行中なら skip（終了）
-5. flatten-tests.lock を作成（session_id は後で書き込む）
-6. Devin API v3 でセッション起動（最大3回リトライ）
-   → 成功: session_id を lock に書き込む
-   → 最終失敗: ターミナルにエラー表示、lock 削除、hook は 0 で終了（コミットはブロックしない）
-7. 完了メッセージ表示（非同期・開発者はブロックされない）
+4. Devin API v3 でセッション起動（最大3回リトライ）
+   → 成功: セッション URL をログ出力
+   → 最終失敗: ワークフローを失敗終了（GitHub 上で通知）
       ↓
 Devin がバックグラウンドで処理
   - 対象ファイルを describe → test にフラット化
   - npm test でパスを確認
   - PR を作成
-  - 完了後 lock ファイルを削除
 ```
 
 ### Devin API 仕様（v3）
@@ -245,22 +226,18 @@ Authorization: Bearer {api_key}
 - eslint-disable-next-line no-restricted-globals コメントを削除する
 - 変換後に {test_command} を実行し、全テストがパスすることを確認する
 - テストが通ったら {pr_branch_prefix}/{timestamp} ブランチで PR を作成する
-- 完了後に {lock_file_path} を削除する
 ```
 
 ### エラーハンドリング方針
 
 | 状況 | 対応 |
 |------|------|
-| API 呼び出し失敗（ネットワーク等） | 3回リトライ後、ターミナルに警告表示してスキップ（コミットはブロックしない） |
-| lock ファイルが残存 | 起動時に session_id の API ステータスを確認し、完了/エラーなら自動削除 |
-| Devin のテスト失敗 | PR は作成せず、セッション URL をコメント or ターミナルに表示 |
+| API 呼び出し失敗（ネットワーク等） | 3回リトライ後、ワークフローを失敗終了（GitHub 上で通知） |
+| Devin のテスト失敗 | PR は作成せず、セッション URL を Actions ログに出力 |
 
 ### プロダクション移行時に直す点（既知の制約）
 
-- **git hook の共有問題**: `.git/hooks/` は git 管理外のためチーム全員が手動インストール必要
-  → 本番化するなら `scripts/install-hooks.sh` または `husky` / `lefthook` で管理
 - **変換処理の非決定性**: Devin API（LLM）による変換は毎回同じ結果を保証しない
   → 本番化するなら `jscodeshift` による AST ベースの codemod に置き換える
-- **API キーの個人管理**: チームで使うなら GitHub Secrets + GitHub Actions に移行
-- **PR 乱立**: コミット単位で PR が生まれるため、まとめて処理する仕組みが必要
+- **PR 乱立**: push 単位で PR が生まれるため、まとめて処理する仕組みが必要
+  → 定期実行（schedule）に切り替えてバッチ処理するか、特定ブランチへの push のみをトリガーにする

@@ -1,0 +1,7 @@
+{
+  "targets": [
+    "superset-frontend/src/visualizations/TimeTable"
+  ],
+  "test_command": "cd superset-frontend && npm run test -- --testPathPattern",
+  "pr_branch_prefix": "auto/flatten-tests"
+}
