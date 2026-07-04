@@ -81,6 +81,7 @@ jobs:
           fi
 
       - name: Launch Devin session to flatten describe blocks
+        id: launch
         if: steps.detect.outputs.matched_files != ''
         env:
           DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
@@ -136,3 +137,39 @@ jobs:
 
           echo "Devin session launched successfully."
           echo "Session URL: https://app.devin.ai/sessions/$SESSION_ID"
+          echo "session_url=https://app.devin.ai/sessions/$SESSION_ID" >> "$GITHUB_OUTPUT"
+          # 改行を含む値は GITHUB_OUTPUT に直接書けないため | 区切りで保持
+          echo "files_list=$(echo "$FILES_LIST" | tr '\n' '|' | sed 's/|$//')" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack
+        if: steps.launch.outputs.session_url != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          FILES_DISPLAY="$(echo "${{ steps.launch.outputs.files_list }}" | tr '|' '\n' | sed 's/^/• /' | tr '\n' '\n')"
+          PUSHER="${{ github.actor }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          SESSION_URL="${{ steps.launch.outputs.session_url }}"
+
+          PAYLOAD="$(jq -n \
+            --arg pusher "$PUSHER" \
+            --arg files "$FILES_DISPLAY" \
+            --arg commit_url "$COMMIT_URL" \
+            --arg session_url "$SESSION_URL" \
+            '{
+              "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る> | <\($session_url)|Devin セッションを見る>"
+                  }
+                }
+              ]
+            }')"
+
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL"

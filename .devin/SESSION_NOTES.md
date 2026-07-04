@@ -164,6 +164,7 @@ GitHub Actions が Devin API を呼び出し、フラット化→テスト→PR 
 GitHub Secrets:
   DEVIN_API_KEY                     # Devin API キー（cog_ prefix）
   DEVIN_ORG_ID                      # Devin Organization ID（org- prefix）
+  SLACK_WEBHOOK_URL                 # Slack Incoming Webhook URL
 ```
 
 ### 設定ファイル仕様
@@ -193,6 +194,7 @@ GitHub Actions 発火（push イベント）
 4. Devin API v3 でセッション起動（最大3回リトライ）
    → 成功: セッション URL をログ出力
    → 最終失敗: ワークフローを失敗終了（GitHub 上で通知）
+5. Slack に通知（push したユーザー・対象ファイル・Devin セッション URL）
       ↓
 Devin がバックグラウンドで処理
   - 対象ファイルを describe → test にフラット化
