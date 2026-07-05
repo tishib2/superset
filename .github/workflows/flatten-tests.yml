@@ -72,7 +72,35 @@ jobs:
             echo "matched_files=$(IFS='|'; echo "${MATCHED_FILES[*]}")" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Launch Devin session and notify Slack
+      - name: Notify Slack on detection
+        if: steps.detect.outputs.matched_files != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          FILES_DISPLAY="$(echo "${{ steps.detect.outputs.matched_files }}" | tr '|' '\n' | sed 's/^/• /')"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          PAYLOAD="$(jq -n \
+            --arg pusher "${{ github.actor }}" \
+            --arg files "$FILES_DISPLAY" \
+            --arg commit_url "$COMMIT_URL" \
+            '{
+              "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る>"
+                  }
+                }
+              ]
+            }')"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Launch Devin session and notify on completion
         if: steps.detect.outputs.matched_files != ''
         env:
           DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
@@ -84,4 +112,5 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
           REPO_ROOT: ${{ github.workspace }}
+          SKIP_LAUNCH_NOTIFICATION: "1"
         run: bash docker/flatten-tests/entrypoint.sh

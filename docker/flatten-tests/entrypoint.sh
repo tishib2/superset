@@ -149,38 +149,41 @@ fi
 SESSION_URL="https://app.devin.ai/sessions/$SESSION_ID"
 log "Devin session launched: $SESSION_URL"
 
-# ── Slack 通知 ───────────────────────────────────────────────────────────────
+# ── 起動通知（ローカル Docker 実行時のみ・CI では検知直後に送信済み）────────
 
+SKIP_LAUNCH_NOTIFICATION="${SKIP_LAUNCH_NOTIFICATION:-0}"
 COMMIT_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
 FILES_DISPLAY="$(printf '%s\n' "${MATCHED_FILES[@]}" | sed 's/^/• /')"
 
-PAYLOAD="$(jq -n \
-  --arg pusher "$GITHUB_ACTOR" \
-  --arg files "$FILES_DISPLAY" \
-  --arg commit_url "$COMMIT_URL" \
-  --arg session_url "$SESSION_URL" \
-  '{
-    "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*",
-    "blocks": [
-      {
-        "type": "section",
-        "text": {
-          "type": "mrkdwn",
-          "text": "*describe ブロック検出 → Devin が自動フラット化を開始しました*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る> | <\($session_url)|Devin セッションを見る>"
+if [ "$SKIP_LAUNCH_NOTIFICATION" != "1" ]; then
+  PAYLOAD="$(jq -n \
+    --arg pusher "$GITHUB_ACTOR" \
+    --arg files "$FILES_DISPLAY" \
+    --arg commit_url "$COMMIT_URL" \
+    --arg session_url "$SESSION_URL" \
+    '{
+      "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
+      "blocks": [
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る> | <\($session_url)|Devin セッションを見る>"
+          }
         }
-      }
-    ]
-  }')"
+      ]
+    }')"
 
-if [ "$DRY_RUN" = "1" ]; then
-  log "[DRY RUN] Would send Slack notification:"
-  echo "$PAYLOAD" | jq .
-else
-  curl -sf -X POST \
-    -H "Content-Type: application/json" \
-    -d "$PAYLOAD" \
-    "$SLACK_WEBHOOK_URL"
-  log "Slack notification sent."
+  if [ "$DRY_RUN" = "1" ]; then
+    log "[DRY RUN] Would send launch Slack notification:"
+    echo "$PAYLOAD" | jq .
+  else
+    curl -sf -X POST \
+      -H "Content-Type: application/json" \
+      -d "$PAYLOAD" \
+      "$SLACK_WEBHOOK_URL"
+    log "Launch notification sent."
+  fi
 fi
 
 # ── Devin セッション完了待ち（ポーリング）────────────────────────────────────
