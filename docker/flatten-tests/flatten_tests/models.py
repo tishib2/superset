@@ -27,7 +27,7 @@ class Config(BaseSettings):
     dry_run: bool = Field(default=False, alias="DRY_RUN")
 
     devin_api_base: str = "https://api.devin.ai/v3"
-    max_wait: int = 1200
+    max_wait: int = 900
     poll_interval: int = 30
 
 
