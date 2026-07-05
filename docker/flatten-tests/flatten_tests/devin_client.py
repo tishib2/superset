@@ -74,7 +74,10 @@ def get_session(config: Config, session_id: str) -> DevinSessionResponse:
     headers = {"Authorization": f"Bearer {config.devin_api_key}"}
     response = httpx.get(url, headers=headers, timeout=30)
     response.raise_for_status()
-    return DevinSessionResponse.model_validate(response.json())
+    data = response.json()
+    if data.get("pull_requests"):
+        logger.info("Raw pull_requests from API: %s", data["pull_requests"])
+    return DevinSessionResponse.model_validate(data)
 
 
 def terminate_session(config: Config, session_id: str) -> None:
@@ -103,6 +106,8 @@ def poll_until_done(config: Config, session_id: str) -> DevinSessionResponse:
 
         session = get_session(config, session_id)
         pr_count = len(session.pull_requests)
+        if pr_count > 0:
+            logger.info("Raw pull_requests API data: %s", session.model_dump()["pull_requests"])
         logger.info(
             "Session status: %s, PRs: %d (%ds elapsed)",
             session.status,
