@@ -219,9 +219,17 @@ else
       "$DEVIN_API_BASE/organizations/$DEVIN_ORG_ID/sessions/$SESSION_ID" || echo "")"
 
     FINAL_STATUS="$(echo "$SESSION_DATA" | jq -r '.status // empty' 2>/dev/null || echo "")"
-    log "Session status: ${FINAL_STATUS:-unknown} (${elapsed}s elapsed)"
+    PR_COUNT="$(echo "$SESSION_DATA" | jq -r '.pull_requests | length' 2>/dev/null || echo "0")"
+    log "Session status: ${FINAL_STATUS:-unknown}, PRs: ${PR_COUNT} (${elapsed}s elapsed)"
 
     if [[ "$FINAL_STATUS" == "exit" || "$FINAL_STATUS" == "error" || "$FINAL_STATUS" == "suspended" ]]; then
+      break
+    fi
+
+    # PR が作成されていれば成功とみなして終了
+    if [[ "$PR_COUNT" -gt 0 ]]; then
+      log "PR created, treating as success."
+      FINAL_STATUS="exit"
       break
     fi
   done
