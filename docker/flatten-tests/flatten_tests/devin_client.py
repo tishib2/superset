@@ -114,7 +114,7 @@ def poll_until_done(config: Config, session_id: str) -> DevinSessionResponse:
             return session
 
         if pr_count > 0:
-            logger.info("PR created, treating as success.")
+            logger.info("PR created, treating as success. pull_requests: %s", session.pull_requests)
             return DevinSessionResponse(
                 session_id=session.session_id,
                 url=session.url,
