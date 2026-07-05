@@ -1,17 +1,16 @@
-FROM alpine:3.20
+FROM python:3.13-slim
 
-RUN apk add --no-cache \
-    bash \
-    curl \
-    git \
-    jq
+RUN pip install uv
 
-WORKDIR /repo
+WORKDIR /app
 
-# リポジトリのソースを組み込む（クレデンシャルは含まない）
-COPY . .
+COPY docker/flatten-tests/pyproject.toml docker/flatten-tests/uv.lock ./
+RUN uv sync --frozen
 
-COPY docker/flatten-tests/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY docker/flatten-tests/flatten_tests ./flatten_tests
+COPY docker/flatten-tests/tests ./tests
+COPY .devin/flatten-tests.json /repo/.devin/flatten-tests.json
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENV REPO_ROOT=/repo
+
+CMD ["uv", "run", "python", "-m", "flatten_tests.main"]
