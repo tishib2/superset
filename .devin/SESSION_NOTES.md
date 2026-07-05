@@ -290,10 +290,12 @@ Authorization: Bearer {api_key}
 
 | 状況 | 対応 |
 |------|------|
-| API 呼び出し失敗（ネットワーク等） | 3回リトライ後、ワークフローを失敗終了（GitHub 上で通知） |
-| Devin のテスト失敗 | PR は作成されず、ポーリングがタイムアウトして Slack に通知 |
-| セッションが running のまま PR 作成済み | pull_requests フィールドを確認し、1件以上で成功とみなす |
-| ポーリングタイムアウト（20分） | セッションを terminate し、Slack にタイムアウト通知 |
+| API 呼び出し失敗（ネットワーク等） | 3回リトライ後、`RuntimeError` を raise → `main.py` の `except` で捕捉し Slack に失敗通知（エラーメッセージ・Run ID 含む）→ `exit(1)` |
+| Devin のテスト失敗 | PR は作成されず、ポーリングがタイムアウト → セッションを terminate → Slack にタイムアウト通知 |
+| セッションが `running` のまま PR 作成済み | `poll_until_done` が `pull_requests` フィールドを確認し、1件以上で `status=exit` とみなして早期終了 |
+| ポーリングタイムアウト（20分） | セッションを terminate し、Slack にタイムアウト通知 → `exit(1)` |
+| 予期しない例外（設定ミス・バグ等） | `main.py` の `except Exception` で捕捉し Slack に失敗通知 → `exit(1)` |
+| Slack 通知自体の失敗 | ログにエラーを出力するが、通知失敗でワークフローを止めない（ネストした `try/except` で保護） |
 
 ### Slack 通知の識別子設計
 
