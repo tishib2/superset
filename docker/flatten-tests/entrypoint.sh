@@ -182,3 +182,75 @@ else
     "$SLACK_WEBHOOK_URL"
   log "Slack notification sent."
 fi
+
+# ── Devin セッション完了待ち（ポーリング）────────────────────────────────────
+
+MAX_WAIT=600   # 最大10分
+INTERVAL=30    # 30秒ごとにポーリング
+elapsed=0
+FINAL_STATUS=""
+
+log "Waiting for Devin session to complete (max ${MAX_WAIT}s)..."
+
+if [ "$DRY_RUN" = "1" ]; then
+  log "[DRY RUN] Skipping polling."
+  FINAL_STATUS="exit"
+else
+  while [ "$elapsed" -lt "$MAX_WAIT" ]; do
+    sleep "$INTERVAL"
+    elapsed=$((elapsed + INTERVAL))
+
+    SESSION_DATA="$(curl -sf \
+      -H "Authorization: Bearer $DEVIN_API_KEY" \
+      "$DEVIN_API_BASE/organizations/$DEVIN_ORG_ID/sessions/$SESSION_ID" || echo "")"
+
+    FINAL_STATUS="$(echo "$SESSION_DATA" | jq -r '.status // empty' 2>/dev/null || echo "")"
+    log "Session status: ${FINAL_STATUS:-unknown} (${elapsed}s elapsed)"
+
+    if [[ "$FINAL_STATUS" == "exit" || "$FINAL_STATUS" == "error" || "$FINAL_STATUS" == "suspended" ]]; then
+      break
+    fi
+  done
+fi
+
+# ── 完了通知（Slack）────────────────────────────────────────────────────────
+
+if [ -z "$FINAL_STATUS" ] || [[ "$FINAL_STATUS" != "exit" && "$FINAL_STATUS" != "error" && "$FINAL_STATUS" != "suspended" ]]; then
+  # タイムアウト
+  RESULT_EMOJI=":warning:"
+  RESULT_TEXT="タイムアウト（${MAX_WAIT}秒以内に完了しませんでした）"
+elif [ "$FINAL_STATUS" = "exit" ]; then
+  RESULT_EMOJI=":white_check_mark:"
+  RESULT_TEXT="成功 — PR が作成されました"
+else
+  RESULT_EMOJI=":x:"
+  RESULT_TEXT="失敗 (status: ${FINAL_STATUS})"
+fi
+
+RESULT_PAYLOAD="$(jq -n \
+  --arg emoji "$RESULT_EMOJI" \
+  --arg result "$RESULT_TEXT" \
+  --arg session_url "$SESSION_URL" \
+  '{
+    "text": "\($emoji) Devin フラット化セッション完了",
+    "blocks": [
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "\($emoji) *Devin フラット化セッション完了*\n\n*結果:* \($result)\n\n<\($session_url)|Devin セッションを見る>"
+        }
+      }
+    ]
+  }')"
+
+if [ "$DRY_RUN" = "1" ]; then
+  log "[DRY RUN] Would send completion Slack notification:"
+  echo "$RESULT_PAYLOAD" | jq .
+else
+  curl -sf -X POST \
+    -H "Content-Type: application/json" \
+    -d "$RESULT_PAYLOAD" \
+    "$SLACK_WEBHOOK_URL"
+  log "Completion notification sent (${RESULT_TEXT})."
+fi
