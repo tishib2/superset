@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   detect-and-notify:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       matched_files: ${{ steps.detect.outputs.matched_files }}
     steps:
@@ -103,7 +103,7 @@ jobs:
             "$SLACK_WEBHOOK_URL"
 
   launch-devin:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: detect-and-notify
     if: needs.detect-and-notify.outputs.matched_files != ''
     steps:
