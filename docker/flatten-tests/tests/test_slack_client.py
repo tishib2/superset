@@ -107,7 +107,7 @@ class TestNotifyCompletion:
 
         respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
         notify_completion(config, "https://app.devin.ai/sessions/abc", "exit")
-        assert "成功" in str(captured["payload"])
+        assert "Success" in str(captured["payload"])
 
     @respx.mock
     def test_timeout_status(self) -> None:
@@ -121,7 +121,7 @@ class TestNotifyCompletion:
 
         respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
         notify_completion(config, "https://app.devin.ai/sessions/abc", "timeout")
-        assert "タイムアウト" in str(captured["payload"])
+        assert "Timed out" in str(captured["payload"])
 
     @respx.mock
     def test_error_status(self) -> None:
@@ -135,7 +135,7 @@ class TestNotifyCompletion:
 
         respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
         notify_completion(config, "https://app.devin.ai/sessions/abc", "error")
-        assert "失敗" in str(captured["payload"])
+        assert "Failed" in str(captured["payload"])
 
     @respx.mock
     def test_payload_contains_pr_url(self) -> None:

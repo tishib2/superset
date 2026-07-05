@@ -51,20 +51,20 @@ def notify_detection(
     commit_url = f"{config.github_server_url}/{config.github_repository}/commit/{config.github_sha}"
     run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
 
-    links = f"<{commit_url}|コミットを見る>"
+    links = f"<{commit_url}|View commit>"
     if session_url:
-        links += f" | <{session_url}|Devin セッションを見る>"
+        links += f" | <{session_url}|View Devin session>"
 
     text = (
-        f":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n"
+        f":mag: *describe blocks detected — starting Devin flatten*\n\n"
         f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
-        f"*Push したユーザー:* {config.github_actor}\n"
-        f"*対象ファイル:*\n{files_display}\n\n"
+        f"*Pushed by:* {config.github_actor}\n"
+        f"*Target files:*\n{files_display}\n\n"
         f"{links}"
     )
 
     payload = _build_payload(
-        fallback_text=":mag: describe ブロック検出 → Devin によるフラット化を開始します",
+        fallback_text=":mag: describe blocks detected — starting Devin flatten",
         color=COLOR_INFO,
         mrkdwn_text=text,
     )
@@ -85,16 +85,16 @@ def notify_failure(
     """Send Slack notification when the workflow itself fails."""
     run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
 
-    session_line = f"\n<{session_url}|Devin セッションを見る>" if session_url else ""
+    session_line = f"\n<{session_url}|View Devin session>" if session_url else ""
     text = (
-        f":rotating_light: *flatten-tests ワークフロー失敗*\n\n"
+        f":rotating_light: *flatten-tests workflow failed*\n\n"
         f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
-        f"*エラー:* `{error}`"
+        f"*Error:* `{error}`"
         f"{session_line}"
     )
 
     payload = _build_payload(
-        fallback_text=":rotating_light: flatten-tests ワークフロー失敗",
+        fallback_text=":rotating_light: flatten-tests workflow failed",
         color=COLOR_DANGER,
         mrkdwn_text=text,
     )
@@ -118,32 +118,32 @@ def notify_completion(
 
     if status == "exit":
         emoji = ":white_check_mark:"
-        result_text = "成功 — PR が作成されました"
+        result_text = "Success — PR created"
         color = COLOR_SUCCESS
     elif status == "timeout":
         emoji = ":warning:"
-        result_text = f"タイムアウト（{config.max_wait}秒以内に完了しませんでした）"
+        result_text = f"Timed out (did not complete within {config.max_wait}s)"
         color = COLOR_WARNING
     else:
         emoji = ":x:"
-        result_text = f"失敗 (status: {status})"
+        result_text = f"Failed (status: {status})"
         color = COLOR_DANGER
 
     pr_links = ""
     if pull_request_urls:
         pr_lines = "\n".join(f"• <{url}|{url}>" for url in pull_request_urls)
-        pr_links = f"\n*作成された PR:*\n{pr_lines}\n"
+        pr_links = f"\n*Pull request(s) created:*\n{pr_lines}\n"
 
     text = (
-        f"{emoji} *Devin フラット化セッション完了*\n\n"
+        f"{emoji} *Devin flatten session completed*\n\n"
         f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
-        f"*結果:* {result_text}\n"
+        f"*Result:* {result_text}\n"
         f"{pr_links}\n"
-        f"<{session_url}|Devin セッションを見る>"
+        f"<{session_url}|View Devin session>"
     )
 
     payload = _build_payload(
-        fallback_text=f"{emoji} Devin フラット化セッション完了",
+        fallback_text=f"{emoji} Devin flatten session completed",
         color=color,
         mrkdwn_text=text,
     )

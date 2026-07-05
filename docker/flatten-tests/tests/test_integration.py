@@ -305,7 +305,7 @@ class TestMainIntegration:
                     main()
 
         assert exc_info.value.code == 1
-        assert any("タイムアウト" in str(call) for call in slack_calls)
+        assert any("Timed out" in str(call) for call in slack_calls)
 
     @respx.mock
     def test_pr_url_included_in_completion_notification(self, tmp_path: Path) -> None:
