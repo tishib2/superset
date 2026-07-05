@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,8 +14,9 @@ from .detector import detect_files, get_changed_files
 from .models import Config, FlattenTestsConfig
 from .slack_client import notify_completion, notify_detection, notify_failure
 
+_log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%SZ",
     stream=sys.stdout,
@@ -43,6 +45,7 @@ def resolve_matched_files(config: Config, flatten_config: FlattenTestsConfig) ->
 
 def main() -> None:
     config = Config()  # type: ignore[call-arg]
+    session_url: str | None = None
 
     try:
         flatten_config = load_flatten_config(config.repo_root)
@@ -78,10 +81,11 @@ def main() -> None:
             sys.exit(0)
 
         session = launch_session(config, prompt)
-        logger.info("Devin session launched: %s", session.url)
+        session_url = session.url
+        logger.info("Devin session launched: %s", session_url)
 
         if not config.skip_launch_notification:
-            notify_detection(config, matched_files, session_url=session.url)
+            notify_detection(config, matched_files, session_url=session_url)
 
         final_session = poll_until_done(config, session.session_id)
         pr_urls = [pr.pr_url for pr in final_session.pull_requests if pr.pr_url]
@@ -93,7 +97,7 @@ def main() -> None:
     except Exception as e:
         logger.exception("Unexpected error in flatten-tests workflow")
         try:
-            notify_failure(config, f"{type(e).__name__}: {e}")
+            notify_failure(config, f"{type(e).__name__}: {e}", session_url=session_url)
         except Exception:
             logger.exception("Failed to send failure notification")
         sys.exit(1)

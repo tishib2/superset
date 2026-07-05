@@ -80,14 +80,17 @@ def notify_detection(
 def notify_failure(
     config: Config,
     error: str,
+    session_url: str | None = None,
 ) -> None:
     """Send Slack notification when the workflow itself fails."""
     run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
 
+    session_line = f"\n<{session_url}|Devin セッションを見る>" if session_url else ""
     text = (
         f":rotating_light: *flatten-tests ワークフロー失敗*\n\n"
         f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
         f"*エラー:* `{error}`"
+        f"{session_line}"
     )
 
     payload = _build_payload(

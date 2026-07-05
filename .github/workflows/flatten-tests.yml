@@ -120,6 +120,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Launch Devin session and notify on completion
+        timeout-minutes: 25
         env:
           DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
           DEVIN_ORG_ID: ${{ secrets.DEVIN_ORG_ID }}

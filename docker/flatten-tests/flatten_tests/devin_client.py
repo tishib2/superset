@@ -118,11 +118,17 @@ def poll_until_done(config: Config, session_id: str) -> DevinSessionResponse:
     logger.info("Polling session %s (max %ds, interval %ds)...", session_id, config.max_wait, config.poll_interval)
     elapsed = 0
     poll_count = 0
+    last_heartbeat = 0
+    heartbeat_interval = 60  # emit a heartbeat log every 60 seconds
 
     while elapsed < config.max_wait:
         time.sleep(config.poll_interval)
         elapsed += config.poll_interval
         poll_count += 1
+
+        if elapsed - last_heartbeat >= heartbeat_interval:
+            logger.info("HEARTBEAT [session_id=%s]: still polling, elapsed=%ds/%ds", session_id, elapsed, config.max_wait)
+            last_heartbeat = elapsed
 
         session = get_session(config, session_id)
         pr_count = len(session.pull_requests)
