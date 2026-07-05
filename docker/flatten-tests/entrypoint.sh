@@ -103,7 +103,10 @@ PR_BRANCH_PREFIX="$(jq -r '.pr_branch_prefix' "$CONFIG_FILE")"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 FILES_LIST="$(printf '%s\n' "${MATCHED_FILES[@]}")"
 
-PROMPT="以下のテストファイルで describe() ブロックを Jest の推奨スタイルに従いフラット化してください。
+REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+PROMPT="リポジトリ: ${REPO_URL}
+
+以下のテストファイルで describe() ブロックを Jest の推奨スタイルに従いフラット化してください。
 
 対象ファイル:
 $FILES_LIST
@@ -127,13 +130,12 @@ if [ "$DRY_RUN" = "1" ]; then
 else
   for attempt in 1 2 3; do
     log "Launching Devin session... (attempt $attempt/3)"
-    REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
     RESPONSE="$(curl -sf \
       -X POST \
       -H "Authorization: Bearer $DEVIN_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg prompt "$PROMPT" --arg repo "$REPO_URL" \
-        '{"prompt": $prompt, "repos": [$repo], "resumable": false}')" \
+      -d "$(jq -n --arg prompt "$PROMPT" \
+        '{"prompt": $prompt, "resumable": false}')" \
       "$DEVIN_API_BASE/organizations/$DEVIN_ORG_ID/sessions" || echo "")"
 
     SESSION_ID="$(echo "$RESPONSE" | jq -r '.session_id // empty' 2>/dev/null || echo "")"
