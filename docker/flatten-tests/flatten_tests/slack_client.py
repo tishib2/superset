@@ -108,6 +108,7 @@ def notify_completion(
     config: Config,
     session_url: str,
     status: str,
+    pull_request_urls: list[str] | None = None,
 ) -> None:
     """Send Slack notification when a Devin session completes."""
     run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
@@ -125,10 +126,16 @@ def notify_completion(
         result_text = f"失敗 (status: {status})"
         color = COLOR_DANGER
 
+    pr_links = ""
+    if pull_request_urls:
+        pr_lines = "\n".join(f"• <{url}|{url}>" for url in pull_request_urls)
+        pr_links = f"\n*作成された PR:*\n{pr_lines}\n"
+
     text = (
         f"{emoji} *Devin フラット化セッション完了*\n\n"
         f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
-        f"*結果:* {result_text}\n\n"
+        f"*結果:* {result_text}\n"
+        f"{pr_links}\n"
         f"<{session_url}|Devin セッションを見る>"
     )
 

@@ -138,6 +138,25 @@ class TestNotifyCompletion:
         assert "失敗" in str(captured["payload"])
 
     @respx.mock
+    def test_payload_contains_pr_url(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_completion(
+            config,
+            "https://app.devin.ai/sessions/abc",
+            "exit",
+            pull_request_urls=["https://github.com/org/repo/pull/42"],
+        )
+        assert "https://github.com/org/repo/pull/42" in str(captured["payload"])
+
+    @respx.mock
     def test_color_success(self) -> None:
         config = make_config()
         captured = {}

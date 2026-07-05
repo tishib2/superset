@@ -83,7 +83,8 @@ def main() -> None:
             notify_detection(config, matched_files, session_url=session.url)
 
         final_session = poll_until_done(config, session.session_id)
-        notify_completion(config, final_session.url, final_session.status)
+        pr_urls = [pr.url for pr in final_session.pull_requests if pr.url]
+        notify_completion(config, final_session.url, final_session.status, pull_request_urls=pr_urls or None)
 
         if final_session.status not in {"exit"}:
             sys.exit(1)
