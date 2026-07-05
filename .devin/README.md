@@ -22,8 +22,8 @@ Developer
 │  │  2. match targets in     │                           │
 │  │     flatten-tests.json   │                           │
 │  │  3. grep for describe()  │                           │
-│  │  4. Slack notification ──┼──────────────────────────┼──▶ Slack
-│  └────────────┬─────────────┘     (blue, files listed) │
+│  │  4. Slack notification ──┼──────────────────────────┼──▶ Slack (blue)
+│  └────────────┬─────────────┘                          │
 │               │ matched_files                           │
 │               ▼                                         │
 │  ┌──────────────────────────┐                           │
