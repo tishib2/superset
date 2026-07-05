@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   detect-and-notify:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       matched_files: ${{ steps.detect.outputs.matched_files }}
     steps:
@@ -106,7 +106,7 @@ jobs:
             "$SLACK_WEBHOOK_URL"
 
   launch-devin:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: detect-and-notify
     if: needs.detect-and-notify.outputs.matched_files != ''
     steps:
@@ -115,6 +115,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
 
       - name: Launch Devin session and notify on completion
         env:
