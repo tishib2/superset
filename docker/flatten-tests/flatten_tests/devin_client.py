@@ -57,14 +57,30 @@ def launch_session(config: Config, prompt: str) -> DevinSessionResponse:
         logger.info("Launching Devin session... (attempt %d/%d)", attempt, MAX_RETRIES)
         try:
             response = httpx.post(url, headers=headers, json={"prompt": prompt}, timeout=30)
-            logger.info("API response (HTTP %d): %s", response.status_code, response.text)
+            logger.info("Devin API response: HTTP %d", response.status_code)
             response.raise_for_status()
-            return DevinSessionResponse.model_validate(response.json())
-        except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
-            logger.warning("API call failed: %s", e)
+            session = DevinSessionResponse.model_validate(response.json())
+            logger.info("Session launched: session_id=%s url=%s", session.session_id, session.url)
+            return session
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            body = e.response.text[:300]
+            if status == 429:
+                logger.warning("Rate limited by Devin API (HTTP 429): %s", body)
+            elif status >= 500:
+                logger.warning("Devin API server error (HTTP %d): %s", status, body)
+            else:
+                logger.error("Devin API client error (HTTP %d): %s — not retrying", status, body)
+                raise
             if attempt < MAX_RETRIES:
                 wait = min(RETRY_BASE_INTERVAL * (2 ** (attempt - 1)), RETRY_MAX_INTERVAL)
-                logger.info("Retrying in %ds... (attempt %d/%d)", wait, attempt, MAX_RETRIES)
+                logger.info("Retrying in %ds...", wait)
+                time.sleep(wait)
+        except httpx.RequestError as e:
+            logger.warning("Network error calling Devin API: %s", e)
+            if attempt < MAX_RETRIES:
+                wait = min(RETRY_BASE_INTERVAL * (2 ** (attempt - 1)), RETRY_MAX_INTERVAL)
+                logger.info("Retrying in %ds...", wait)
                 time.sleep(wait)
 
     raise RuntimeError(f"Failed to launch Devin session after {MAX_RETRIES} attempts.")
@@ -99,29 +115,35 @@ TERMINAL_STATUSES = {"exit", "error", "suspended"}
 
 def poll_until_done(config: Config, session_id: str) -> DevinSessionResponse:
     """Poll session status until done, PR created, or timeout. Returns final session state."""
-    logger.info("Waiting for Devin session to complete (max %ds)...", config.max_wait)
+    logger.info("Polling session %s (max %ds, interval %ds)...", session_id, config.max_wait, config.poll_interval)
     elapsed = 0
+    poll_count = 0
 
     while elapsed < config.max_wait:
         time.sleep(config.poll_interval)
         elapsed += config.poll_interval
+        poll_count += 1
 
         session = get_session(config, session_id)
         pr_count = len(session.pull_requests)
-        if pr_count > 0:
-            logger.info("Raw pull_requests API data: %s", session.model_dump()["pull_requests"])
         logger.info(
-            "Session status: %s, PRs: %d (%ds elapsed)",
+            "Poll #%d [session_id=%s]: status=%s prs=%d elapsed=%ds",
+            poll_count,
+            session_id,
             session.status,
             pr_count,
             elapsed,
         )
+        if pr_count > 0:
+            pr_urls = [pr.pr_url for pr in session.pull_requests if pr.pr_url]
+            logger.info("PR(s) detected [session_id=%s]: %s", session_id, pr_urls)
 
         if session.status in TERMINAL_STATUSES:
+            logger.info("Terminal status reached [session_id=%s]: %s", session_id, session.status)
             return session
 
         if pr_count > 0:
-            logger.info("PR created, treating as success. pull_requests: %s", session.pull_requests)
+            logger.info("PR created, treating as success [session_id=%s]", session_id)
             return DevinSessionResponse(
                 session_id=session.session_id,
                 url=session.url,
@@ -129,7 +151,7 @@ def poll_until_done(config: Config, session_id: str) -> DevinSessionResponse:
                 pull_requests=session.pull_requests,
             )
 
-    logger.warning("Timeout: terminating session.")
+    logger.warning("Timeout reached [session_id=%s]: terminating session.", session_id)
     terminate_session(config, session_id)
     return DevinSessionResponse(
         session_id=session_id,

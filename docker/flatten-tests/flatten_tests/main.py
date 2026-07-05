@@ -15,7 +15,8 @@ from .slack_client import notify_completion, notify_detection, notify_failure
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[flatten-tests] %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%SZ",
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
@@ -90,11 +91,11 @@ def main() -> None:
             sys.exit(1)
 
     except Exception as e:
-        logger.error("Unexpected error: %s", e)
+        logger.exception("Unexpected error in flatten-tests workflow")
         try:
-            notify_failure(config, str(e))
-        except Exception as slack_err:
-            logger.error("Failed to send failure notification: %s", slack_err)
+            notify_failure(config, f"{type(e).__name__}: {e}")
+        except Exception:
+            logger.exception("Failed to send failure notification")
         sys.exit(1)
 
 

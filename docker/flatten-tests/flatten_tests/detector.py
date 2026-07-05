@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def get_changed_files(repo_root: str) -> list[str]:
@@ -16,8 +19,11 @@ def get_changed_files(repo_root: str) -> list[str]:
             text=True,
             check=True,
         )
-        return [f for f in result.stdout.splitlines() if f]
-    except subprocess.CalledProcessError:
+        files = [f for f in result.stdout.splitlines() if f]
+        logger.info("git diff found %d changed file(s)", len(files))
+        return files
+    except subprocess.CalledProcessError as e:
+        logger.warning("git diff HEAD~1 failed (returncode=%d), falling back to empty-tree diff", e.returncode)
         # Initial commit: diff against empty tree
         result = subprocess.run(
             [
@@ -33,7 +39,9 @@ def get_changed_files(repo_root: str) -> list[str]:
             text=True,
             check=True,
         )
-        return [f for f in result.stdout.splitlines() if f]
+        files = [f for f in result.stdout.splitlines() if f]
+        logger.info("empty-tree diff found %d file(s)", len(files))
+        return files
 
 
 def is_test_file(path: str) -> bool:
@@ -46,7 +54,8 @@ def has_describe_block(file_path: Path) -> bool:
     try:
         content = file_path.read_text(encoding="utf-8")
         return "describe(" in content
-    except OSError:
+    except OSError as e:
+        logger.warning("Could not read %s: %s", file_path, e)
         return False
 
 
@@ -59,11 +68,18 @@ def detect_files(
     matched: list[str] = []
     for changed in changed_files:
         if not is_test_file(changed):
+            logger.debug("Skipping non-test file: %s", changed)
             continue
         for target in targets:
             if target in changed:
                 full_path = Path(repo_root) / changed
                 if has_describe_block(full_path):
+                    logger.info("Matched (has describe): %s", changed)
                     matched.append(changed)
-                    break
+                else:
+                    logger.debug("No describe block in: %s", changed)
+                break
+        else:
+            logger.debug("No target matched for: %s", changed)
+    logger.info("Detection complete: %d/%d changed file(s) matched", len(matched), len(changed_files))
     return matched
