@@ -114,7 +114,8 @@ $FILES_LIST
 - eslint-disable-next-line no-restricted-globals のコメント行を削除する
 - 変換後に以下のコマンドで全テストがパスすることを確認する:
   $TEST_COMMAND=<対象ファイル名>
-- 全テストがパスしたら ${PR_BRANCH_PREFIX}/${TIMESTAMP} ブランチで PR を作成する"
+- 全テストがパスしたら ${PR_BRANCH_PREFIX}/${TIMESTAMP} ブランチで PR を作成する
+- PR のコミットメッセージには必ず [skip ci] を含める（CI を一時的にスキップするため）"
 
 SESSION_ID=""
 if [ "$DRY_RUN" = "1" ]; then
