@@ -163,7 +163,7 @@ class TestPollUntilDone:
                     "session_id": "sess-abc",
                     "url": "https://app.devin.ai/sessions/sess-abc",
                     "status": "running",
-                    "pull_requests": [{"number": 42, "url": "https://github.com/org/repo/pull/42", "title": "fix"}],
+                    "pull_requests": [{"pr_url": "https://github.com/org/repo/pull/42", "pr_state": "open"}],
                 },
             )
         )

@@ -34,9 +34,10 @@ class Config(BaseSettings):
 class DevinPullRequest(BaseModel):
     """A pull request created by a Devin session."""
 
-    number: int | None = None
-    url: str | None = None
-    title: str | None = None
+    model_config = {"extra": "allow"}
+
+    pr_url: str | None = None
+    pr_state: str | None = None
 
 
 class DevinSessionResponse(BaseModel):
