@@ -90,18 +90,13 @@ jobs:
             --arg run_id "${{ github.run_id }}" \
             '{
               "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
-              "attachments": [
+              "blocks": [
                 {
-                  "color": "#0088cc",
-                  "blocks": [
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Run ID:* <\($run_url)|\($run_id)>\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る>"
-                      }
-                    }
-                  ]
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Run ID:* <\($run_url)|\($run_id)>\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る>"
+                  }
                 }
               ]
             }')"

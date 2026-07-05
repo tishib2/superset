@@ -232,7 +232,7 @@ GitHub Actions 発火（push イベント）
 2. flatten-tests.json の targets と照合
 3. 対象ファイル内に describe が含まれるか確認
       ↓ (なければ終了)
-4. Slack に即時通知（Run ID・対象ファイル・コミットリンク）
+4. Slack に通知（Run ID・対象ファイル・コミットリンク）
 
 [Job 2: launch-devin] (self-hosted runner, detect-and-notify に依存)
 5. uv run python -m flatten_tests.main を実行

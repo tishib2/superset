@@ -22,8 +22,8 @@ Developer
 │  │  2. match targets in     │                           │
 │  │     flatten-tests.json   │                           │
 │  │  3. grep for describe()  │                           │
-│  │  4. Slack notification ──┼──────────────────────────┼──▶ Slack (blue)
-│  └────────────┬─────────────┘                          │
+│  │  4. Slack notification ──┼───────────────────────────┼──▶ Slack
+│  └────────────┬─────────────┘                           │
 │               │ matched_files                           │
 │               ▼                                         │
 │  ┌──────────────────────────┐                           │
@@ -31,16 +31,16 @@ Developer
 │  │                          │                           │
 │  │  flatten_tests/main.py   │                           │
 │  │    │                     │                           │
-│  │    ├─ launch session ────┼──────────────────────────┼──▶ Devin API
-│  │    │                     │                           │      │
-│  │    ├─ poll (30s interval)│◀─────────────────────────┼──────┘
+│  │    ├─ launch session ────┼───────────────────────────┼──▶ Devin API
+│  │    │                     │                           │       │
+│  │    ├─ poll (30s interval)│◀─────────────────────────┼───────┘
 │  │    │   until:            │   session status /        │
 │  │    │   • PR created      │   pull_requests           │
 │  │    │   • exit / error    │                           │
 │  │    │   • timeout (15min) │                           │
 │  │    │                     │                           │
-│  │    └─ Slack notification ┼──────────────────────────┼──▶ Slack
-│  └──────────────────────────┘  (green / yellow / red)  │
+│  │    └─ Slack notification ┼───────────────────────────┼──▶ Slack
+│  └──────────────────────────┘  (green / yellow / red)   │
 └─────────────────────────────────────────────────────────┘
                                           │
                               Devin works autonomously
