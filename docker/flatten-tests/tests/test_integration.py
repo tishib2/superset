@@ -174,6 +174,9 @@ class TestMainIntegration:
         respx.get("https://api.devin.ai/v3/organizations/org-test/sessions/sess-abc").mock(
             return_value=httpx.Response(200, json=SESSION_WITH_PR)
         )
+        respx.delete("https://api.devin.ai/v3/organizations/org-test/sessions/sess-abc").mock(
+            return_value=httpx.Response(200)
+        )
 
         with mock.patch.dict("os.environ", env, clear=True):
             with mock.patch("flatten_tests.devin_client.time.sleep"):
@@ -325,6 +328,9 @@ class TestMainIntegration:
         )
         respx.get("https://api.devin.ai/v3/organizations/org-test/sessions/sess-abc").mock(
             return_value=httpx.Response(200, json=SESSION_WITH_PR)
+        )
+        respx.delete("https://api.devin.ai/v3/organizations/org-test/sessions/sess-abc").mock(
+            return_value=httpx.Response(200)
         )
 
         with mock.patch.dict("os.environ", env, clear=True):

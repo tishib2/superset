@@ -198,9 +198,13 @@ class TestPollUntilDone:
                 },
             )
         )
+        respx.delete(url).mock(return_value=httpx.Response(200))
 
         import unittest.mock as mock
         with mock.patch("flatten_tests.devin_client.time.sleep"):
             result = poll_until_done(config, "sess-abc")
         assert result.status == "exit"
+        # session must be terminated after PR is detected
+        delete_calls = [c for c in respx.calls if c.request.method == "DELETE"]
+        assert len(delete_calls) == 1
         assert len(result.pull_requests) == 1
