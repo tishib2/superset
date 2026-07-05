@@ -130,15 +130,19 @@ if [ "$DRY_RUN" = "1" ]; then
 else
   for attempt in 1 2 3; do
     log "Launching Devin session... (attempt $attempt/3)"
-    RESPONSE="$(curl -sf \
+    REQUEST_BODY="$(jq -n --arg prompt "$PROMPT" '{"prompt": $prompt, "resumable": false}')"
+    RESPONSE="$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $DEVIN_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg prompt "$PROMPT" \
-        '{"prompt": $prompt, "resumable": false}')" \
+      -d "$REQUEST_BODY" \
       "$DEVIN_API_BASE/organizations/$DEVIN_ORG_ID/sessions" || echo "")"
 
-    SESSION_ID="$(echo "$RESPONSE" | jq -r '.session_id // empty' 2>/dev/null || echo "")"
+    HTTP_STATUS="$(echo "$RESPONSE" | grep "HTTP_STATUS:" | sed 's/HTTP_STATUS://')"
+    RESPONSE_BODY="$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")"
+    log "API response (HTTP $HTTP_STATUS): $RESPONSE_BODY"
+
+    SESSION_ID="$(echo "$RESPONSE_BODY" | jq -r '.session_id // empty' 2>/dev/null || echo "")"
     [ -n "$SESSION_ID" ] && break
 
     if [ "$attempt" -lt 3 ]; then
