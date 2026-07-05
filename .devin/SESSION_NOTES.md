@@ -162,11 +162,21 @@ GitHub Actions が Devin API を呼び出し、フラット化→テスト→PR 
 └── flatten-tests.yml               # GitHub Actions ワークフロー（git管理）
 
 docker/flatten-tests/
-├── Dockerfile                      # alpine + bash/curl/git/jq
-├── entrypoint.sh                   # 検知→API→Slack の共通ロジック
-└── .env.example                    # 環境変数テンプレート（git管理）
-
-.dockerignore                       # .env 等のクレデンシャルを除外
+├── flatten_tests/                  # Python パッケージ
+│   ├── __init__.py
+│   ├── models.py                   # pydantic モデル（Config, API レスポンス型）
+│   ├── detector.py                 # describe ブロック検知ロジック
+│   ├── devin_client.py             # Devin API クライアント（セッション起動・ポーリング）
+│   ├── slack_client.py             # Slack 通知クライアント
+│   └── main.py                     # エントリーポイント
+├── tests/                          # pytest 単体テスト（31件）
+│   ├── test_detector.py
+│   ├── test_devin_client.py
+│   └── test_slack_client.py
+├── Dockerfile                      # alpine + bash/curl/git/jq（レガシー、将来削除予定）
+├── entrypoint.sh                   # Bash 実装（レガシー、Python 版に移行済み）
+├── pyproject.toml                  # uv プロジェクト設定
+└── uv.lock                         # 依存ロックファイル
 
 GitHub Secrets:
   DEVIN_API_KEY                     # Devin API キー（cog_ prefix）
@@ -174,21 +184,27 @@ GitHub Secrets:
   SLACK_WEBHOOK_URL                 # Slack Incoming Webhook URL
 ```
 
-### ローカル実行（Docker）
+### ローカル実行（uv）
 
 ```bash
-# 1. .env を用意（.env.example をコピーして値を設定）
-cp docker/flatten-tests/.env.example docker/flatten-tests/.env
-# → DEVIN_API_KEY, DEVIN_ORG_ID, SLACK_WEBHOOK_URL, GITHUB_ACTOR 等を編集
-
-# 2. イメージをビルド
-docker build -f docker/flatten-tests/Dockerfile -t flatten-tests .
-
-# 3. 実行（クレデンシャルは実行時に環境変数として渡す）
-docker run --env-file docker/flatten-tests/.env flatten-tests
+cd docker/flatten-tests
 
 # DRY_RUN で API 呼び出しなしに動作確認
-docker run --env-file docker/flatten-tests/.env -e DRY_RUN=1 flatten-tests
+DEVIN_API_KEY="cog_dummy" \
+DEVIN_ORG_ID="org-dummy" \
+SLACK_WEBHOOK_URL="https://hooks.slack.com/dummy" \
+TARGET_FILES="superset-frontend/src/visualizations/TimeTable/utils/sortUtils/sortUtils.test.ts" \
+GITHUB_ACTOR="testuser" \
+GITHUB_REPOSITORY="tishib2/superset" \
+GITHUB_SHA="abc123" \
+GITHUB_RUN_ID="99999" \
+REPO_ROOT="$(git rev-parse --show-toplevel)" \
+SKIP_LAUNCH_NOTIFICATION="1" \
+DRY_RUN="1" \
+uv run python -m flatten_tests.main
+
+# テストを実行
+uv run pytest -v
 ```
 
 ### 設定ファイル仕様
@@ -211,19 +227,29 @@ docker run --env-file docker/flatten-tests/.env -e DRY_RUN=1 flatten-tests
       ↓
 GitHub Actions 発火（push イベント）
       ↓
+[Job 1: detect-and-notify] (self-hosted runner)
 1. 変更ファイルを取得（git diff）
 2. flatten-tests.json の targets と照合
 3. 対象ファイル内に describe が含まれるか確認
       ↓ (なければ終了)
-4. Devin API v3 でセッション起動（最大3回リトライ）
-   → 成功: セッション URL をログ出力
-   → 最終失敗: ワークフローを失敗終了（GitHub 上で通知）
-5. Slack に通知（push したユーザー・対象ファイル・Devin セッション URL）
+4. Slack に即時通知（Run ID・対象ファイル・コミットリンク）
+
+[Job 2: launch-devin] (self-hosted runner, detect-and-notify に依存)
+5. uv run python -m flatten_tests.main を実行
+6. Devin API v3 でセッション起動（最大3回リトライ）
+   → 失敗: ワークフローを失敗終了
+7. ポーリング（30秒間隔、最大20分）
+   - status が exit/error/suspended になったら終了
+   - pull_requests が1件以上になったら成功とみなして終了（running のまま待つ無駄を避ける）
+   - タイムアウト時はセッションを明示的に terminate
+8. Slack に完了通知（Run ID・結果・Devin セッションリンク）
       ↓
 Devin がバックグラウンドで処理
+  - リポジトリをクローン
   - 対象ファイルを describe → test にフラット化
   - npm test でパスを確認
-  - PR を作成
+  - [skip ci] を含むコミットメッセージで PR を作成
+  - PR 作成後にセッションを終了
 ```
 
 ### Devin API 仕様（v3）
@@ -237,9 +263,13 @@ Authorization: Bearer {api_key}
 }
 ```
 
+**注意**: `resumable` など追加パラメータを指定すると Organization 設定との競合で 400 エラーになる場合がある。`prompt` のみを送信するのが安全。
+
 ### Devin に渡すプロンプトのテンプレート
 
 ```
+リポジトリ: {repo_url}
+
 以下のテストファイルで describe() ブロックを Jest の推奨スタイルに従いフラット化してください。
 
 対象ファイル:
@@ -252,6 +282,8 @@ Authorization: Bearer {api_key}
 - eslint-disable-next-line no-restricted-globals コメントを削除する
 - 変換後に {test_command} を実行し、全テストがパスすることを確認する
 - テストが通ったら {pr_branch_prefix}/{timestamp} ブランチで PR を作成する
+- PR のコミットメッセージには必ず [skip ci] を含める（CI を一時的にスキップするため）
+- PR を作成したらタスクは完了。それ以上の作業は行わずセッションを終了すること
 ```
 
 ### エラーハンドリング方針
@@ -259,7 +291,9 @@ Authorization: Bearer {api_key}
 | 状況 | 対応 |
 |------|------|
 | API 呼び出し失敗（ネットワーク等） | 3回リトライ後、ワークフローを失敗終了（GitHub 上で通知） |
-| Devin のテスト失敗 | PR は作成せず、セッション URL を Actions ログに出力 |
+| Devin のテスト失敗 | PR は作成されず、ポーリングがタイムアウトして Slack に通知 |
+| セッションが running のまま PR 作成済み | pull_requests フィールドを確認し、1件以上で成功とみなす |
+| ポーリングタイムアウト（20分） | セッションを terminate し、Slack にタイムアウト通知 |
 
 ### Slack 通知の識別子設計
 
