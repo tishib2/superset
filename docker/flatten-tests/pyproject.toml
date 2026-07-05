@@ -1,0 +1,27 @@
+[project]
+name = "flatten-tests"
+version = "0.1.0"
+description = "Auto-flatten describe blocks in test files via Devin API"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+]
+
+[project.scripts]
+flatten-tests = "flatten_tests.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-mock>=3.14.0",
+    "respx>=0.21.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

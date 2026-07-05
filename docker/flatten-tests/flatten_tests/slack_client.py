@@ -1,0 +1,89 @@
+"""Slack notification client."""
+
+from __future__ import annotations
+
+import logging
+
+import httpx
+
+from .models import Config
+
+logger = logging.getLogger(__name__)
+
+
+def _post(webhook_url: str, payload: dict) -> None:  # type: ignore[type-arg]
+    response = httpx.post(webhook_url, json=payload, timeout=10)
+    response.raise_for_status()
+
+
+def notify_detection(
+    config: Config,
+    matched_files: list[str],
+    session_url: str | None = None,
+) -> None:
+    """Send Slack notification when describe blocks are detected."""
+    files_display = "\n".join(f"• {f}" for f in matched_files)
+    commit_url = f"{config.github_server_url}/{config.github_repository}/commit/{config.github_sha}"
+    run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
+
+    links = f"<{commit_url}|コミットを見る>"
+    if session_url:
+        links += f" | <{session_url}|Devin セッションを見る>"
+
+    text = (
+        f":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n"
+        f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
+        f"*Push したユーザー:* {config.github_actor}\n"
+        f"*対象ファイル:*\n{files_display}\n\n"
+        f"{links}"
+    )
+
+    payload = {
+        "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
+        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
+    }
+
+    if config.dry_run:
+        logger.info("[DRY RUN] Would send detection Slack notification: %s", payload)
+        return
+
+    _post(config.slack_webhook_url, payload)
+    logger.info("Detection notification sent.")
+
+
+def notify_completion(
+    config: Config,
+    session_url: str,
+    status: str,
+) -> None:
+    """Send Slack notification when a Devin session completes."""
+    run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
+
+    if status == "exit":
+        emoji = ":white_check_mark:"
+        result_text = "成功 — PR が作成されました"
+    elif status == "timeout":
+        emoji = ":warning:"
+        result_text = f"タイムアウト（{config.max_wait}秒以内に完了しませんでした）"
+    else:
+        emoji = ":x:"
+        result_text = f"失敗 (status: {status})"
+
+    text = (
+        f"{emoji} *Devin フラット化セッション完了*\n\n"
+        f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
+        f"*結果:* {result_text}\n\n"
+        f"<{session_url}|Devin セッションを見る>"
+    )
+
+    payload = {
+        "text": f"{emoji} Devin フラット化セッション完了",
+        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
+    }
+
+    if config.dry_run:
+        logger.info("[DRY RUN] Would send completion Slack notification: %s", payload)
+        return
+
+    _post(config.slack_webhook_url, payload)
+    logger.info("Completion notification sent (%s).", result_text)
