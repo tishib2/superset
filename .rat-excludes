@@ -89,9 +89,3 @@ CLAUDE.md
 CURSOR.md
 GEMINI.md
 GPT.md
-
-# flatten-tests automation
-.dockerignore
-docker/flatten-tests/.env.example
-docker/flatten-tests/Dockerfile
-docker/flatten-tests/entrypoint.sh
