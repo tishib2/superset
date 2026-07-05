@@ -51,6 +51,32 @@ def notify_detection(
     logger.info("Detection notification sent.")
 
 
+def notify_failure(
+    config: Config,
+    error: str,
+) -> None:
+    """Send Slack notification when the workflow itself fails (before session launch)."""
+    run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
+
+    text = (
+        f":rotating_light: *flatten-tests ワークフロー失敗*\n\n"
+        f"*Run ID:* <{run_url}|{config.github_run_id}>\n"
+        f"*エラー:* `{error}`"
+    )
+
+    payload = {
+        "text": ":rotating_light: flatten-tests ワークフロー失敗",
+        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
+    }
+
+    if config.dry_run:
+        logger.info("[DRY RUN] Would send failure Slack notification: %s", payload)
+        return
+
+    _post(config.slack_webhook_url, payload)
+    logger.info("Failure notification sent.")
+
+
 def notify_completion(
     config: Config,
     session_url: str,

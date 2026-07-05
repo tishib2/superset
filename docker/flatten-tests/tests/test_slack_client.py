@@ -7,7 +7,7 @@ import respx
 import httpx
 
 from flatten_tests.models import Config
-from flatten_tests.slack_client import notify_completion, notify_detection
+from flatten_tests.slack_client import notify_completion, notify_detection, notify_failure
 
 
 def make_config(**kwargs) -> Config:  # type: ignore[return]
@@ -114,3 +114,46 @@ class TestNotifyCompletion:
         respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
         notify_completion(config, "https://app.devin.ai/sessions/abc", "error")
         assert "失敗" in str(captured["payload"])
+
+
+class TestNotifyFailure:
+    def test_dry_run_skips_http(self) -> None:
+        config = make_config(DRY_RUN=True)
+        notify_failure(config, "Something went wrong")
+
+    @respx.mock
+    def test_posts_to_webhook(self) -> None:
+        config = make_config()
+        mock_route = respx.post("https://hooks.slack.com/test").mock(
+            return_value=httpx.Response(200)
+        )
+        notify_failure(config, "API call failed after 3 attempts")
+        assert mock_route.called
+
+    @respx.mock
+    def test_payload_contains_error_message(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_failure(config, "API call failed after 3 attempts")
+        assert "API call failed after 3 attempts" in str(captured["payload"])
+
+    @respx.mock
+    def test_payload_contains_run_id(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_failure(config, "some error")
+        assert "99999" in str(captured["payload"])
