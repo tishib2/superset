@@ -130,7 +130,7 @@ if [ "$DRY_RUN" = "1" ]; then
 else
   for attempt in 1 2 3; do
     log "Launching Devin session... (attempt $attempt/3)"
-    REQUEST_BODY="$(jq -n --arg prompt "$PROMPT" '{"prompt": $prompt, "resumable": false}')"
+    REQUEST_BODY="$(jq -n --arg prompt "$PROMPT" '{"prompt": $prompt}')"
     RESPONSE="$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $DEVIN_API_KEY" \
