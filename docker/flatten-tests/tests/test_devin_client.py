@@ -105,8 +105,39 @@ class TestLaunchSession:
             ]
         )
 
-        session = launch_session(config, "test prompt")
+        import unittest.mock as mock
+        with mock.patch("flatten_tests.devin_client.time.sleep") as mock_sleep:
+            session = launch_session(config, "test prompt")
         assert session.session_id == "sess-abc"
+        # 1回目の失敗後: RETRY_BASE_INTERVAL * 2^0 = 5s
+        mock_sleep.assert_called_once_with(5)
+
+    @respx.mock
+    def test_exponential_backoff_on_consecutive_failures(self) -> None:
+        config = make_config()
+        url = f"{config.devin_api_base}/organizations/{config.devin_org_id}/sessions"
+        respx.post(url).mock(
+            side_effect=[
+                httpx.Response(500, json={"detail": "error"}),
+                httpx.Response(500, json={"detail": "error"}),
+                httpx.Response(
+                    200,
+                    json={
+                        "session_id": "sess-abc",
+                        "url": "https://app.devin.ai/sessions/sess-abc",
+                        "status": "new",
+                        "pull_requests": [],
+                    },
+                ),
+            ]
+        )
+
+        import unittest.mock as mock
+        with mock.patch("flatten_tests.devin_client.time.sleep") as mock_sleep:
+            session = launch_session(config, "test prompt")
+        assert session.session_id == "sess-abc"
+        # 1回目失敗: 5s, 2回目失敗: 10s
+        assert mock_sleep.call_args_list == [mock.call(5), mock.call(10)]
 
     @respx.mock
     def test_raises_after_max_retries(self) -> None:

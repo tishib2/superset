@@ -12,7 +12,8 @@ from .models import Config, DevinSessionResponse
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-RETRY_INTERVAL = 5
+RETRY_BASE_INTERVAL = 5  # seconds; actual wait = RETRY_BASE_INTERVAL * 2^(attempt-1)
+RETRY_MAX_INTERVAL = 60  # cap to avoid excessively long waits
 
 
 def build_prompt(
@@ -62,8 +63,9 @@ def launch_session(config: Config, prompt: str) -> DevinSessionResponse:
         except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
             logger.warning("API call failed: %s", e)
             if attempt < MAX_RETRIES:
-                logger.info("Retrying in %ds...", RETRY_INTERVAL)
-                time.sleep(RETRY_INTERVAL)
+                wait = min(RETRY_BASE_INTERVAL * (2 ** (attempt - 1)), RETRY_MAX_INTERVAL)
+                logger.info("Retrying in %ds... (attempt %d/%d)", wait, attempt, MAX_RETRIES)
+                time.sleep(wait)
 
     raise RuntimeError(f"Failed to launch Devin session after {MAX_RETRIES} attempts.")
 
