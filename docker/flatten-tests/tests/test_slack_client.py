@@ -7,7 +7,15 @@ import respx
 import httpx
 
 from flatten_tests.models import Config
-from flatten_tests.slack_client import notify_completion, notify_detection, notify_failure
+from flatten_tests.slack_client import (
+    COLOR_DANGER,
+    COLOR_INFO,
+    COLOR_SUCCESS,
+    COLOR_WARNING,
+    notify_completion,
+    notify_detection,
+    notify_failure,
+)
 
 
 def make_config(**kwargs) -> Config:  # type: ignore[return]
@@ -67,6 +75,20 @@ class TestNotifyDetection:
         notify_detection(config, ["src/foo.test.ts"])
         assert "src/foo.test.ts" in str(captured["payload"])
 
+    @respx.mock
+    def test_payload_color_is_info(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_detection(config, ["src/foo.test.ts"])
+        assert captured["payload"]["attachments"][0]["color"] == COLOR_INFO
+
 
 class TestNotifyCompletion:
     def test_dry_run_skips_http(self) -> None:
@@ -114,6 +136,48 @@ class TestNotifyCompletion:
         respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
         notify_completion(config, "https://app.devin.ai/sessions/abc", "error")
         assert "失敗" in str(captured["payload"])
+
+    @respx.mock
+    def test_color_success(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_completion(config, "https://app.devin.ai/sessions/abc", "exit")
+        assert captured["payload"]["attachments"][0]["color"] == COLOR_SUCCESS
+
+    @respx.mock
+    def test_color_timeout(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_completion(config, "https://app.devin.ai/sessions/abc", "timeout")
+        assert captured["payload"]["attachments"][0]["color"] == COLOR_WARNING
+
+    @respx.mock
+    def test_color_error(self) -> None:
+        config = make_config()
+        captured = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(200)
+
+        respx.post("https://hooks.slack.com/test").mock(side_effect=capture)
+        notify_completion(config, "https://app.devin.ai/sessions/abc", "error")
+        assert captured["payload"]["attachments"][0]["color"] == COLOR_DANGER
 
 
 class TestNotifyFailure:

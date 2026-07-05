@@ -10,10 +10,35 @@ from .models import Config
 
 logger = logging.getLogger(__name__)
 
+# Notification colors by status
+COLOR_INFO = "#0088cc"    # blue  — detection / start
+COLOR_SUCCESS = "#36a64f" # green — session completed successfully
+COLOR_WARNING = "#e8a838" # yellow — timeout
+COLOR_DANGER = "#e01e5a"  # red   — error / workflow failure
+
 
 def _post(webhook_url: str, payload: dict) -> None:  # type: ignore[type-arg]
     response = httpx.post(webhook_url, json=payload, timeout=10)
     response.raise_for_status()
+
+
+def _build_payload(
+    fallback_text: str,
+    color: str,
+    mrkdwn_text: str,
+) -> dict:  # type: ignore[type-arg]
+    """Build a Slack payload with a colored attachment."""
+    return {
+        "text": fallback_text,
+        "attachments": [
+            {
+                "color": color,
+                "blocks": [
+                    {"type": "section", "text": {"type": "mrkdwn", "text": mrkdwn_text}}
+                ],
+            }
+        ],
+    }
 
 
 def notify_detection(
@@ -38,10 +63,11 @@ def notify_detection(
         f"{links}"
     )
 
-    payload = {
-        "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
-        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
-    }
+    payload = _build_payload(
+        fallback_text=":mag: describe ブロック検出 → Devin によるフラット化を開始します",
+        color=COLOR_INFO,
+        mrkdwn_text=text,
+    )
 
     if config.dry_run:
         logger.info("[DRY RUN] Would send detection Slack notification: %s", payload)
@@ -55,7 +81,7 @@ def notify_failure(
     config: Config,
     error: str,
 ) -> None:
-    """Send Slack notification when the workflow itself fails (before session launch)."""
+    """Send Slack notification when the workflow itself fails."""
     run_url = f"{config.github_server_url}/{config.github_repository}/actions/runs/{config.github_run_id}"
 
     text = (
@@ -64,10 +90,11 @@ def notify_failure(
         f"*エラー:* `{error}`"
     )
 
-    payload = {
-        "text": ":rotating_light: flatten-tests ワークフロー失敗",
-        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
-    }
+    payload = _build_payload(
+        fallback_text=":rotating_light: flatten-tests ワークフロー失敗",
+        color=COLOR_DANGER,
+        mrkdwn_text=text,
+    )
 
     if config.dry_run:
         logger.info("[DRY RUN] Would send failure Slack notification: %s", payload)
@@ -88,12 +115,15 @@ def notify_completion(
     if status == "exit":
         emoji = ":white_check_mark:"
         result_text = "成功 — PR が作成されました"
+        color = COLOR_SUCCESS
     elif status == "timeout":
         emoji = ":warning:"
         result_text = f"タイムアウト（{config.max_wait}秒以内に完了しませんでした）"
+        color = COLOR_WARNING
     else:
         emoji = ":x:"
         result_text = f"失敗 (status: {status})"
+        color = COLOR_DANGER
 
     text = (
         f"{emoji} *Devin フラット化セッション完了*\n\n"
@@ -102,10 +132,11 @@ def notify_completion(
         f"<{session_url}|Devin セッションを見る>"
     )
 
-    payload = {
-        "text": f"{emoji} Devin フラット化セッション完了",
-        "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": text}}],
-    }
+    payload = _build_payload(
+        fallback_text=f"{emoji} Devin フラット化セッション完了",
+        color=color,
+        mrkdwn_text=text,
+    )
 
     if config.dry_run:
         logger.info("[DRY RUN] Would send completion Slack notification: %s", payload)
