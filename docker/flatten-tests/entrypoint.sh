@@ -216,9 +216,17 @@ fi
 # ── 完了通知（Slack）────────────────────────────────────────────────────────
 
 if [ -z "$FINAL_STATUS" ] || [[ "$FINAL_STATUS" != "exit" && "$FINAL_STATUS" != "error" && "$FINAL_STATUS" != "suspended" ]]; then
-  # タイムアウト
+  # タイムアウト → セッションを終了させる
   RESULT_EMOJI=":warning:"
   RESULT_TEXT="タイムアウト（${MAX_WAIT}秒以内に完了しませんでした）"
+  if [ "$DRY_RUN" != "1" ]; then
+    log "Terminating Devin session due to timeout..."
+    curl -sf -X DELETE \
+      -H "Authorization: Bearer $DEVIN_API_KEY" \
+      "$DEVIN_API_BASE/organizations/$DEVIN_ORG_ID/sessions/$SESSION_ID" \
+      > /dev/null || warn "Failed to terminate session $SESSION_ID"
+    log "Session terminated."
+  fi
 elif [ "$FINAL_STATUS" = "exit" ]; then
   RESULT_EMOJI=":white_check_mark:"
   RESULT_TEXT="成功 — PR が作成されました"
