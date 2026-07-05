@@ -81,10 +81,13 @@ jobs:
         run: |
           FILES_DISPLAY="$(echo "${{ steps.detect.outputs.matched_files }}" | tr '|' '\n' | sed 's/^/• /')"
           COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           PAYLOAD="$(jq -n \
             --arg pusher "${{ github.actor }}" \
             --arg files "$FILES_DISPLAY" \
             --arg commit_url "$COMMIT_URL" \
+            --arg run_url "$RUN_URL" \
+            --arg run_id "${{ github.run_id }}" \
             '{
               "text": ":mag: describe ブロック検出 → Devin によるフラット化を開始します",
               "blocks": [
@@ -92,7 +95,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る>"
+                    "text": ":mag: *describe ブロック検出 → Devin によるフラット化を開始します*\n\n*Run ID:* <\($run_url)|\($run_id)>\n*Push したユーザー:* \($pusher)\n*対象ファイル:*\n\($files)\n\n<\($commit_url)|コミットを見る>"
                   }
                 }
               ]
@@ -123,6 +126,7 @@ jobs:
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           REPO_ROOT: ${{ github.workspace }}
           SKIP_LAUNCH_NOTIFICATION: "1"
         run: bash docker/flatten-tests/entrypoint.sh

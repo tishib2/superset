@@ -46,6 +46,7 @@ GITHUB_ACTOR="${GITHUB_ACTOR:-unknown}"
 GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-}"
 GITHUB_SHA="${GITHUB_SHA:-}"
+GITHUB_RUN_ID="${GITHUB_RUN_ID:-}"
 DRY_RUN="${DRY_RUN:-0}"
 
 # ── 対象ファイルの決定 ───────────────────────────────────────────────────────
@@ -239,10 +240,13 @@ else
   RESULT_TEXT="失敗 (status: ${FINAL_STATUS})"
 fi
 
+RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 RESULT_PAYLOAD="$(jq -n \
   --arg emoji "$RESULT_EMOJI" \
   --arg result "$RESULT_TEXT" \
   --arg session_url "$SESSION_URL" \
+  --arg run_url "$RUN_URL" \
+  --arg run_id "$GITHUB_RUN_ID" \
   '{
     "text": "\($emoji) Devin フラット化セッション完了",
     "blocks": [
@@ -250,7 +254,7 @@ RESULT_PAYLOAD="$(jq -n \
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": "\($emoji) *Devin フラット化セッション完了*\n\n*結果:* \($result)\n\n<\($session_url)|Devin セッションを見る>"
+          "text": "\($emoji) *Devin フラット化セッション完了*\n\n*Run ID:* <\($run_url)|\($run_id)>\n*結果:* \($result)\n\n<\($session_url)|Devin セッションを見る>"
         }
       }
     ]
