@@ -1,4 +1,4 @@
-// trigger: flatten-tests demo vNEXTNEXTNEXT
+// trigger: flatten-tests demo vNEXTNEXTNEXTNEXT
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
